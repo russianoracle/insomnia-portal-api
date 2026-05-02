@@ -1,10 +1,11 @@
 _id: ut_profile
-type: UnitTest
 parentId: uts_core
-modified: 1777690958038
-created: 1777690958038
+modified: 1777691061077
+created: 1777691061077
 requestId: null
 name: Check Profile Status 200
 code: |-
   const response = await insomnia.send();
   expect(response.status).to.equal(200);
+_type: unit_test
+type: unit_test

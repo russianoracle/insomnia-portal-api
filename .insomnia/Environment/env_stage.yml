@@ -1,8 +1,7 @@
 _id: env_stage
-type: Environment
 parentId: env_base
-modified: 1777690958026
-created: 1777690958026
+modified: 1777691061061
+created: 1777691061061
 name: Stage
 data:
   az_m2m_gateway_url: https://stage-eflow-api.astrazenecacloud.ru
@@ -10,3 +9,5 @@ dataPropertyOrder: null
 color: "#d3923a"
 isPrivate: false
 metaSortKey: 1700000000002
+_type: environment
+type: environment

@@ -1,8 +1,7 @@
 _id: env_base
-type: Environment
 parentId: wrk_api_portal
-modified: 1777690958025
-created: 1777690958025
+modified: 1777691061060
+created: 1777691061060
 name: Base Environment
 data:
   az_m2m_client_id: "351600543497457166"
@@ -22,3 +21,5 @@ dataPropertyOrder: null
 color: null
 isPrivate: false
 metaSortKey: 1700000000000
+_type: environment
+type: environment

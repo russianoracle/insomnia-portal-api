@@ -1,6 +1,7 @@
 _id: uts_core
-type: UnitTestSuite
 parentId: wrk_api_portal
-modified: 1777690958037
-created: 1777690958037
+modified: 1777691061077
+created: 1777691061077
 name: Core API Tests
+_type: unit_test_suite
+type: unit_test_suite

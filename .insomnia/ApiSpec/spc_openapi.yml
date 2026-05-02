@@ -1,8 +1,7 @@
 _id: spc_openapi
-type: ApiSpec
 parentId: wrk_api_portal
-modified: 1777690958027
-created: 1777690958027
+modified: 1777691061062
+created: 1777691061062
 fileName: Portal-Profile API
 contentType: yaml
 contents: |
@@ -4200,3 +4199,5 @@ contents: |
         - X-Request-Id
         - x-yc-apigateway-authorization-context
       maxAge: 3600
+_type: api_spec
+type: api_spec

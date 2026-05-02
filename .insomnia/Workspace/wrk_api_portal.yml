@@ -1,8 +1,9 @@
 _id: wrk_api_portal
-type: Workspace
 parentId: null
-modified: 1777690958022
-created: 1777690958022
+modified: 1777691061057
+created: 1777691061058
 name: Portal-Profile API Project
 description: Clean project for Portal-Profile API
 scope: design
+_type: workspace
+type: workspace
