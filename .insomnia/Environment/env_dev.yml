@@ -1,0 +1,27 @@
+{
+  "_id": "env_dev",
+  "type": "Environment",
+  "parentId": "env_base",
+  "modified": 1777690036996,
+  "created": 1777690036996,
+  "name": "Dev",
+  "data": {
+    "az_m2m_client_id": "351600543497457166",
+    "az_m2m_key_id": "370434646598513613",
+    "nuxt_app_client_id": "345529978907069966",
+    "nuxt_app_redirect_uri": "http://localhost:5173/auth/signinwin/zitadel",
+    "az_zitadel_domain": "https://zitadel.astrazenecacloud.ru",
+    "az_project_id": "343323774046703118",
+    "az_scope": "openid profile email offline_access urn:zitadel:iam:org:project:id:343323774046703118:aud urn:zitadel:iam:org:projects:roles urn:zitadel:iam:user:metadata urn:zitadel:iam:org:project:id:343323774046703118:role:eflow:employee",
+    "az_m2m_gateway_url": "https://dev-eflow-api.astrazenecacloud.ru",
+    "m2m_private_key": "-----BEGIN RSA PRIVATE KEY-----\\-----END RSA PRIVATE KEY-----",
+    "scopes": "openid profile email urn:zitadel:iam:org:project:id:369770091979528638:aud urn:zitadel:iam:user:metadata eflow:employee:base",
+    "m2m_assertion": "",
+    "m2m_access_token": "",
+    "client_id_2": "369947175628637006"
+  },
+  "dataPropertyOrder": null,
+  "color": "#7d69cb",
+  "isPrivate": false,
+  "metaSortKey": 1777690036996
+}

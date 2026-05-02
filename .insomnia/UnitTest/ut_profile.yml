@@ -1,0 +1,10 @@
+{
+  "_id": "ut_profile",
+  "type": "UnitTest",
+  "parentId": "uts_core",
+  "modified": 1777690036999,
+  "created": 1777690036999,
+  "requestId": null,
+  "name": "Check Profile Status 200",
+  "code": "const response = await insomnia.send();\nexpect(response.status).to.equal(200);"
+}

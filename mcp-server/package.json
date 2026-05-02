@@ -1,0 +1,39 @@
+{
+  "name": "mcp-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "eflow-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "start": "ts-node --esm src/index.ts",
+    "build": "tsc",
+    "serve": "node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.4.1",
+  "dependencies": {
+    "@apidevtools/json-schema-ref-parser": "^15.3.5",
+    "@faker-js/faker": "^10.4.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@stoplight/spectral-core": "^1.22.0",
+    "@stoplight/spectral-functions": "^1.10.2",
+    "@stoplight/spectral-parsers": "^1.0.5",
+    "@stoplight/spectral-rulesets": "^1.22.1",
+    "axios": "^1.15.2",
+    "dotenv": "^17.4.2",
+    "js-yaml": "^4.1.1",
+    "yaml-ast-parser": "^0.0.43",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.6.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}

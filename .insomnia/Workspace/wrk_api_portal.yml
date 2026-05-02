@@ -1,0 +1,10 @@
+{
+  "_id": "wrk_api_portal",
+  "type": "Workspace",
+  "parentId": null,
+  "modified": 1777690036994,
+  "created": 1777690036994,
+  "name": "Portal-Profile API Project",
+  "description": "Project for Portal-Profile API with Environments and MCP",
+  "scope": "design"
+}

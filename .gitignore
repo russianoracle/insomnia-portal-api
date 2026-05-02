@@ -1,0 +1,18 @@
+# Игнорируем временные файлы и зависимости
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+
+# Игнорируем вспомогательные скрипты генерации
+generate-insomnia.js
+test-parser.js
+run_mcp_lint.js
+direct_lint.cjs
+debug_lint.ts
+server_*.log
+test-plan-mode.txt
+
+# Документация планов
+docs/plans/

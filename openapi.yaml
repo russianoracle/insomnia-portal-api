@@ -1,0 +1,4194 @@
+openapi: 3.0.0
+info:
+  title: Portal-Profile API
+  version: 1.0.0
+  description: |+
+    ### Backend API для корпоративного портала AstraZeneca.
+
+    - path: `/api/v1/attorney` 
+      method: **GET** 
+      description: Получение списка доверенностей
+
+    - path: `/api/v1/attorney-requests` 
+      method: **GET** 
+      description: Список заявок
+
+    - path: `/api/v1/attorney-requests/draft` 
+      method: **POST** 
+      description: Сохранить как черновик
+
+    - path: `/api/v1/attorney-requests/draft` 
+      method: **GET** 
+      description: Получить черновик
+
+    - path: `/api/v1/attorney-requests/draft` 
+      method: **PATCH** 
+      description: Обновить черновик заявки
+
+    - path: `/api/v1/attorney-requests/form-references` 
+      method: **GET** 
+      description: Справочники для формы
+
+    - path: `/api/v1/attorney-requests/submit` 
+      method: **POST** 
+      description: Отправить заявку в оркестратор
+
+    - path: `/api/v1/attorney-requests/{attorneys_request_uuid}` 
+      method: **GET** 
+      description: Получить заявку по UUID
+
+    - path: `/api/v1/attorney-requests/{attorneys_request_uuid}/files` 
+      method: **POST** 
+      description: Загрузить файл
+
+    - path: `/api/v1/attorney-requests/{attorneys_request_uuid}/files/{file_uuid}` 
+      method: **GET** 
+      description: Получить ссылку на скачивание файла заявки
+
+    - path: `/api/v1/attorney/{attorney_uuid}` 
+      method: **GET** 
+      description: Получить запись доверенности по UUID
+
+    - path: `/api/v1/attorney/{attorney_uuid}/files/{file_uuid}` 
+      method: **GET** 
+      description: Получить подписанную ссылку на файл по UUID
+
+    - path: `/api/v1/external/attorney-requests` 
+      method: **GET** 
+      description: Получить список необработанных заявок
+
+    - path: `/api/v1/external/attorney-requests/{attorneys_request_uuid}/files/{file_uuid}` 
+      method: **GET** 
+      description: Получить ссылку на скачивание файла заявки (external)
+
+    - path: `/api/v1/org-structure/{employee_id}` 
+      method: **GET** 
+      description: Получение оргструктуры по employee_id
+
+    - path: `/api/v1/profile` 
+      method: **GET** 
+      description: Формирование профиля пользователя
+
+    - path: `/api/v1/profile-by-employee/{employee_id}` 
+      method: **GET** 
+      description: Профиль другого пользователя портала по employee_id
+
+    - path: `/api/v1/profile-information/{prid}` 
+      method: **GET** 
+      description: Получение профиля по PRID для внутреннего сервиса
+
+    - path: `/api/v1/webhooks/attorney-status-update` 
+      method: **POST** 
+      description: Обновление статуса заявки (от Directum)
+
+    - path: `/api/v1/webhooks/attorney-sync` 
+      method: **POST** 
+      description: Синхронизация доверенности (от Directum)
+
+    - path: `/api/v1/webhooks/authority-dictionary-sync` 
+      method: **POST** 
+      description: Синхронизация справочника полномочий для пользователей (от Directum)
+
+servers:
+  - url: https://dev-eflow.astrazenecacloud.ru
+    description: API Gateway
+tags:
+  - name: profile
+    x-displayName: profile
+  - name: attorneys
+    x-displayName: attorneys
+  - name: attorneys-request
+    x-displayName: attorneys-request
+  - name: attorney-external
+    x-displayName: attorney-external
+  - name: attorney-webhooks
+    x-displayName: attorney-webhooks
+  - name: user-attorney_part_other
+    x-displayName: other
+paths:
+  /api/v1/profile:
+    get:
+      tags:
+        - profile
+      summary: Формирование профиля пользователя
+      description: Формирует набор данных по профилю пользователя на данных пользователя, полученных из заголовков API Gateway
+      operationId: getProfile
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Успешно сформированы данные профиля пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JsonApiProfile'
+        '400':
+          description: Ошибка парсинга ролей
+        '404':
+          description: Профиль по PRID не найден
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.profile_backend}/api/v1/profile
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/profile-information/{prid}:
+    get:
+      tags:
+        - profile
+      summary: Получение профиля по PRID для внутреннего сервиса
+      description: По умолчанию (`view=full`) возвращает расширенные данные профиля пользователя по PRID (табельный номер, дата рождения, телефон, должность и код подразделения, руководитель, поля документов и статус паспорта) для внутреннего использования без API Gateway. При `view=person_dss` — тот же ресурс, но узкий набор полей (PRID, ФИО RUS, ДСС) и лёгкий запрос к БД.
+      operationId: getProfileInformation
+      parameters:
+        - name: prid
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Prid
+        - name: view
+          in: query
+          required: false
+          schema:
+            enum:
+              - full
+              - person_dss
+            type: string
+            description: full — расширенный профиль; person_dss — только PRID, ФИО (RUS) и признак ДСС (лёгкий запрос без документов и цепочки руководителя)
+            default: full
+            title: View
+          description: full — расширенный профиль; person_dss — только PRID, ФИО (RUS) и признак ДСС (лёгкий запрос без документов и цепочки руководителя)
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: 'Успешно: при view=full — расширенный профиль по PRID; при view=person_dss — только PRID, ФИО (RUS) и признак ДСС (JSON:API, разные схемы attributes)'
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: '#/components/schemas/JsonApiProfileInformation'
+                  - $ref: '#/components/schemas/JsonApiProfileInformationPersonDss'
+                title: Response Get Profile Information Api V1 Profile Information  Prid  Get
+        '404':
+          description: Профиль по указанному PRID не найден
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.profile_backend}/api/v1/profile-information/{prid}
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/org-structure/{employee_id}:
+    get:
+      tags:
+        - profile
+      summary: Получение оргструктуры по employee_id
+      description: 'Возвращает данные для модального окна «Структура»: карточку текущего сотрудника, цепочку его руководителей (до 2 уровней вверх; depth=0 — самый верхний), полный список прямых подчинённых и коллег того же подразделения. В каждой карточке: ФИО, должность, подразделение, признак is_online (стаб). Подчинённые и коллеги отдаются целиком вместе с total — клиент сам ограничивает отображение и реализует «Раскрыть/Скрыть».'
+      operationId: getOrgStructure
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Employee Id
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: 'Успешно: текущий сотрудник, цепочка руководителей до 2 уровней вверх, прямые подчинённые и коллеги по подразделению (JSON:API, type=org-structure)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JsonApiOrgStructure'
+        '404':
+          description: Сотрудник по указанному employee_id не найден
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.profile_backend}/api/v1/org-structure/{employee_id}
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/profile-by-employee/{employee_id}:
+    get:
+      tags:
+        - profile
+      summary: Профиль другого пользователя портала по employee_id
+      description: 'Возвращает набор полей, необходимых для правого сайдбара «Профиль» при клике по иконке другого пользователя: ФИО, инициалы, должность, организация, подразделение, руководитель (с employee_id для перехода к его профилю), формат работы, дата рождения и контакты. Нейминг полей идентичен ручке /profile. Отсутствующие в БД атрибуты не включаются в ответ, чтобы фронт просто не рендерил соответствующие блоки.'
+      operationId: getProfileByEmployee
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Employee Id
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: 'Успешно: профиль другого пользователя по employee_id (JSON:API, type=employee-profiles-flat). Отсутствующие атрибуты исключаются из ответа.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JsonApiProfileByEmployee'
+        '404':
+          description: Сотрудник по указанному employee_id не найден
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.profile_backend}/api/v1/profile-by-employee/{employee_id}
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney:
+    get:
+      tags:
+        - attorneys
+      summary: Получение списка доверенностей
+      description: 'Список доверенностей текущего пользователя: prid из заголовка x-yc-apigateway-authorization-context. Включает записи, где пользователь — инициатор или представитель (прокси).'
+      operationId: getAttorneyList
+      parameters:
+        - name: filter[attributes.status]
+          in: query
+          required: false
+          schema:
+            title: Filter[Attributes.Status]
+            nullable: true
+            type: string
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Сортировка по дате обновления
+            default: '-meta.updated_at'
+            title: Sort
+          description: Сортировка по дате обновления
+        - name: page[limit]
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
+            default: 100
+            title: Page[Limit]
+        - name: page[offset]
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Page[Offset]
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney/{attorney_uuid}:
+    get:
+      tags:
+        - attorneys
+      summary: Получить запись доверенности по UUID
+      description: Метод возвращает запись доверенности по её UUID.
+      operationId: getAttorneyById
+      parameters:
+        - name: attorney_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Attorney Uuid
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney/{attorney_uuid}
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney/{attorney_uuid}/files/{file_uuid}:
+    get:
+      tags:
+        - attorneys
+      summary: Получить подписанную ссылку на файл по UUID
+      description: Метод возвращает ссылку на скачивание доверенности по её UUID.
+      operationId: getFileDownload
+      parameters:
+        - name: attorney_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Attorney Uuid
+        - name: file_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: File Uuid
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileDownloadResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney/{attorney_uuid}/files/{file_uuid}
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney-requests/form-references:
+    get:
+      tags:
+        - attorneys-request
+      summary: Справочники для формы
+      operationId: getFormReferences
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormReferencesResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Справочники для формы
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests/form-references
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney-requests:
+    get:
+      tags:
+        - attorneys-request
+      summary: Список заявок
+      operationId: getRequestList
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Offset
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestFullList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Список заявок
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney-requests/draft:
+    post:
+      tags:
+        - attorneys-request
+      summary: Сохранить как черновик
+      operationId: saveDraft
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttorneyRequestDraftWrite'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Сохранить как черновик
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: POST
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests/draft
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+    get:
+      tags:
+        - attorneys-request
+      summary: Получить черновик
+      operationId: getDraft
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Получить черновик
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests/draft
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+    patch:
+      tags:
+        - attorneys-request
+      summary: Обновить черновик заявки
+      operationId: updateDraft
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttorneyRequestDraftWrite'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Обновить черновик заявки
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: PATCH
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests/draft
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney-requests/submit:
+    post:
+      tags:
+        - attorneys-request
+      summary: Отправить заявку в оркестратор
+      operationId: submitRequest
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttorneyRequestSubmitWrite'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestUpsertPayload'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Отправить заявку в оркестратор
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: POST
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests/submit
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney-requests/{attorneys_request_uuid}:
+    get:
+      tags:
+        - attorneys-request
+      summary: Получить заявку по UUID
+      operationId: getRequestById
+      parameters:
+        - name: attorneys_request_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Attorneys Request Uuid
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Получить заявку по UUID
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests/{attorneys_request_uuid}
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney-requests/{attorneys_request_uuid}/files:
+    post:
+      tags:
+        - attorneys-request
+      summary: Загрузить файл
+      description: 'Загрузить файл по UUID заявки. Допустимые форматы: PDF, DOC, DOCX, JPG, PNG. Не более 5 МБ.'
+      operationId: uploadRequestFile
+      parameters:
+        - name: attorneys_request_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Attorneys Request Uuid
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_request_file_api_v1_attorney_requests__attorneys_request_uuid__files_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestFileUploadResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: POST
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests/{attorneys_request_uuid}/files
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/attorney-requests/{attorneys_request_uuid}/files/{file_uuid}:
+    get:
+      tags:
+        - attorneys-request
+      summary: Получить ссылку на скачивание файла заявки
+      operationId: getRequestFileLink
+      parameters:
+        - name: attorneys_request_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Attorneys Request Uuid
+        - name: file_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: File Uuid
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestFileLinkResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Получить ссылку на скачивание файла заявки
+      security:
+        - ZitadelFrontendJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/attorney-requests/{attorneys_request_uuid}/files/{file_uuid}
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/external/attorney-requests:
+    get:
+      tags:
+        - attorney-external
+      summary: Получить список необработанных заявок
+      description: Directum вызывает endpoint для получения заявок, готовых к обработке (`Submitted_for_processing`). Далее требуется POST /api/v1/webhooks/attorney-status-update.
+      operationId: getExternalAttorneyRequestsList
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AttorneyRequestStatus'
+          description: Фильтр по статусу
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 1000
+            minimum: 1
+            default: 100
+            title: Limit
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            title: Offset
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Сортировка
+            default: created_at:asc
+            title: Sort
+          description: Сортировка
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalAttorneyRequestsListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - ZitadelExternalJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/external/attorney-requests
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/external/attorney-requests/{attorneys_request_uuid}/files/{file_uuid}:
+    get:
+      tags:
+        - attorney-external
+      summary: Получить ссылку на скачивание файла заявки (external)
+      operationId: getExternalRequestFileLink
+      parameters:
+        - name: attorneys_request_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Attorneys Request Uuid
+        - name: file_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: File Uuid
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneyRequestFileLinkResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Получить ссылку на скачивание файла заявки (external)
+      security:
+        - ZitadelExternalJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: GET
+        url: https://var.backend_url/${var.attorneys}/api/v1/external/attorney-requests/{attorneys_request_uuid}/files/{file_uuid}
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/webhooks/attorney-status-update:
+    post:
+      tags:
+        - attorney-webhooks
+      summary: Обновление статуса заявки (от Directum)
+      operationId: attorneyStatusUpdate
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdateCallbackPayload'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusUpdateCallbackResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Обновление статуса заявки (от Directum)
+      security:
+        - ZitadelExternalJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: POST
+        url: https://var.backend_url/${var.attorneys}/api/v1/webhooks/attorney-status-update
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/webhooks/authority-dictionary-sync:
+    post:
+      tags:
+        - attorney-webhooks
+      summary: Синхронизация справочника полномочий для пользователей (от Directum)
+      operationId: authorityDictionarySync
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorityDictionarySyncAllPayload'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorityDictionarySyncAllResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Синхронизация справочника полномочий для пользователей (от Directum)
+      security:
+        - ZitadelExternalJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: POST
+        url: https://var.backend_url/${var.profile_backend}/api/v1/webhooks/authority-dictionary-sync
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+  /api/v1/webhooks/attorney-sync:
+    post:
+      tags:
+        - attorney-webhooks
+      summary: Синхронизация доверенности (от Directum)
+      operationId: attorneySync
+      parameters:
+        - name: X-Request-ID
+          in: header
+          required: false
+          schema:
+            title: X-Request-Id
+            nullable: true
+            type: string
+            format: uuid
+          description: Correlation ID для трассировки
+        - name: x-yc-apigateway-authorization-context
+          in: header
+          required: false
+          schema:
+            title: X-Yc-Apigateway-Authorization-Context
+            nullable: true
+            type: string
+          description: JWT claims в base64 формате
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttorneySyncPayload'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttorneySyncResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      description: Синхронизация доверенности (от Directum)
+      security:
+        - ZitadelExternalJWT: []
+      x-yc-apigateway-integration:
+        type: http
+        method: POST
+        url: https://var.backend_url/${var.attorneys}/api/v1/webhooks/attorney-sync
+        headers:
+          X-Sec-Gwtoken: ${var.x_sec_gw}
+          Content-Type: application/json
+        timeouts:
+          read: 5
+          connect: 5
+components:
+  schemas:
+    ColleaguesBlock:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/EmployeeCard'
+          type: array
+          title: Items
+          description: Карточки коллег по подразделению
+        total:
+          type: integer
+          title: Total
+          description: Общее количество коллег
+      type: object
+      required:
+        - total
+      title: ColleaguesBlock
+      description: Блок «Также {Имя} работает с…» — сотрудники того же подразделения.
+    EmployeeCard:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: ID сотрудника (Employee.id, UUID)
+        first_name:
+          type: string
+          title: First Name
+          description: Имя (RUS)
+        last_name:
+          type: string
+          title: Last Name
+          description: Фамилия (RUS)
+        position:
+          type: string
+          title: Position
+          description: Должность (название PsJob)
+        department:
+          type: string
+          title: Department
+          description: Подразделение (название PsDepartment)
+        is_online:
+          type: boolean
+          title: Is Online
+          description: Признак присутствия пользователя онлайн (заглушка)
+          default: false
+      type: object
+      required:
+        - id
+        - first_name
+        - last_name
+        - position
+        - department
+      title: EmployeeCard
+      description: Карточка сотрудника для модального окна оргструктуры.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    JsonApiOrgStructure:
+      properties:
+        jsonapi:
+          additionalProperties: true
+          type: object
+          title: Jsonapi
+        data:
+          $ref: '#/components/schemas/OrgStructureData'
+        meta:
+          additionalProperties: true
+          type: object
+          title: Meta
+      type: object
+      required:
+        - data
+      title: JsonApiOrgStructure
+    JsonApiProfile:
+      properties:
+        jsonapi:
+          additionalProperties: true
+          type: object
+          title: Jsonapi
+        data:
+          $ref: '#/components/schemas/ProfileData'
+        meta:
+          additionalProperties: true
+          type: object
+          title: Meta
+      type: object
+      required:
+        - data
+      title: JsonApiProfile
+    JsonApiProfileByEmployee:
+      properties:
+        jsonapi:
+          additionalProperties: true
+          type: object
+          title: Jsonapi
+        data:
+          $ref: '#/components/schemas/ProfileByEmployeeData'
+        meta:
+          additionalProperties: true
+          type: object
+          title: Meta
+      type: object
+      required:
+        - data
+      title: JsonApiProfileByEmployee
+    JsonApiProfileInformation:
+      properties:
+        jsonapi:
+          additionalProperties: true
+          type: object
+          title: Jsonapi
+        data:
+          $ref: '#/components/schemas/ProfileInformationData'
+        meta:
+          additionalProperties: true
+          type: object
+          title: Meta
+      type: object
+      required:
+        - data
+      title: JsonApiProfileInformation
+    JsonApiProfileInformationPersonDss:
+      properties:
+        jsonapi:
+          additionalProperties: true
+          type: object
+          title: Jsonapi
+        data:
+          $ref: '#/components/schemas/ProfileInformationPersonDssData'
+        meta:
+          additionalProperties: true
+          type: object
+          title: Meta
+      type: object
+      required:
+        - data
+      title: JsonApiProfileInformationPersonDss
+    ManagerCard:
+      properties:
+        id:
+          type: string
+          title: Id
+          description: ID сотрудника (Employee.id, UUID)
+        first_name:
+          type: string
+          title: First Name
+          description: Имя (RUS)
+        last_name:
+          type: string
+          title: Last Name
+          description: Фамилия (RUS)
+        position:
+          type: string
+          title: Position
+          description: Должность (название PsJob)
+        department:
+          type: string
+          title: Department
+          description: Подразделение (название PsDepartment)
+        is_online:
+          type: boolean
+          title: Is Online
+          description: Признак присутствия пользователя онлайн (заглушка)
+          default: false
+        depth:
+          type: integer
+          title: Depth
+          description: 'Уровень в цепочке руководителей: 0 — верхний, далее по убыванию к непосредственному'
+      type: object
+      required:
+        - id
+        - first_name
+        - last_name
+        - position
+        - department
+        - depth
+      title: ManagerCard
+      description: 'Карточка руководителя в цепочке: depth=0 — самый верхний, depth=N-1 — непосредственный.'
+    OrgStructureAttributes:
+      properties:
+        employee:
+          $ref: '#/components/schemas/EmployeeCard'
+        managers:
+          items:
+            $ref: '#/components/schemas/ManagerCard'
+          type: array
+          title: Managers
+          description: Цепочка руководителей до 2 уровней вверх
+        subordinates:
+          $ref: '#/components/schemas/SubordinatesBlock'
+        colleagues:
+          $ref: '#/components/schemas/ColleaguesBlock'
+      type: object
+      required:
+        - employee
+        - subordinates
+        - colleagues
+      title: OrgStructureAttributes
+      description: Атрибуты ресурса оргструктуры в формате JSON:API.
+    OrgStructureData:
+      properties:
+        type:
+          type: string
+          title: Type
+          enum:
+            - org-structure
+        id:
+          type: string
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/OrgStructureAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: OrgStructureData
+    ProfileAttributes:
+      properties:
+        legal_entity_id:
+          title: Legal Entity Id
+          description: ID юрлица
+          nullable: true
+          type: string
+        legal_entity_name:
+          title: Legal Entity Name
+          description: Название юрлица
+          nullable: true
+          type: string
+        legal_entity_inn:
+          title: Legal Entity Inn
+          description: ИНН
+          nullable: true
+          type: string
+        legal_entity_kpp:
+          title: Legal Entity Kpp
+          description: КПП
+          nullable: true
+          type: string
+        legal_entity_ogrn:
+          title: Legal Entity Ogrn
+          description: ОГРН
+          nullable: true
+          type: string
+        legal_entity_type:
+          title: Legal Entity Type
+          description: Тип юрлица
+          nullable: true
+          type: string
+        legal_entity_phone:
+          title: Legal Entity Phone
+          description: Телефон юрлица
+          nullable: true
+          type: string
+        department_id:
+          title: Department Id
+          description: ID подразделения
+          nullable: true
+          type: string
+        department_name:
+          title: Department Name
+          description: Название подразделения
+          nullable: true
+          type: string
+        department_description:
+          title: Department Description
+          description: Описание подразделения
+          nullable: true
+          type: string
+        job_id:
+          title: Job Id
+          description: ID профессии
+          nullable: true
+          type: string
+        job_name:
+          title: Job Name
+          description: Название профессии
+          nullable: true
+          type: string
+        job_description:
+          title: Job Description
+          description: Описание профессии
+          nullable: true
+          type: string
+        position_id:
+          title: Position Id
+          description: ID штатной позиции
+          nullable: true
+          type: string
+        position_name:
+          title: Position Name
+          description: Название позиции
+          nullable: true
+          type: string
+        position_description:
+          title: Position Description
+          description: Описание позиции
+          nullable: true
+          type: string
+        position_type:
+          title: Position Type
+          description: Тип позиции
+          nullable: true
+          type: string
+        position_grade:
+          title: Position Grade
+          description: Уровень позиции
+          nullable: true
+          type: string
+        position_region:
+          title: Position Region
+          description: Регион позиции
+          nullable: true
+          type: string
+        employee_id:
+          title: Employee Id
+          description: ID сотрудника
+          nullable: true
+          type: string
+        employee_number:
+          title: Employee Number
+          description: Табельный номер
+          nullable: true
+          type: string
+        employee_date_hiring:
+          title: Employee Date Hiring
+          description: Дата приема
+          nullable: true
+          type: string
+        employee_date_dismissal:
+          title: Employee Date Dismissal
+          description: Дата увольнения
+          nullable: true
+          type: string
+        employee_status:
+          title: Employee Status
+          description: Статус сотрудника
+          nullable: true
+          type: string
+        employee_worker:
+          title: Employee Worker
+          description: Тип работника
+          nullable: true
+          type: string
+        director_person_id:
+          title: Director Person Id
+          description: ID физлица руководителя
+          nullable: true
+          type: string
+        director_surname_rus:
+          title: Director Surname Rus
+          description: Фамилия руководителя RUS
+          nullable: true
+          type: string
+        director_name_rus:
+          title: Director Name Rus
+          description: Имя руководителя RUS
+          nullable: true
+          type: string
+        director_patronymic_rus:
+          title: Director Patronymic Rus
+          description: Отчество руководителя RUS
+          nullable: true
+          type: string
+        director_email:
+          title: Director Email
+          description: Email руководителя
+          nullable: true
+          type: string
+        director_initials:
+          title: Director Initials
+          description: Инициалы руководителя
+          nullable: true
+          type: string
+        director_role:
+          title: Director Role
+          description: Роль руководителя
+          nullable: true
+          type: string
+        director_employee_id:
+          title: Director Employee Id
+          description: ID сотрудника руководителя
+          nullable: true
+          type: string
+        director_employee_number:
+          title: Director Employee Number
+          description: Табельный номер руководителя
+          nullable: true
+          type: string
+        director_employee_status:
+          title: Director Employee Status
+          description: Статус сотрудника руководителя
+          nullable: true
+          type: string
+        director_position_id:
+          title: Director Position Id
+          description: ID должности руководителя
+          nullable: true
+          type: string
+        director_position_name:
+          title: Director Position Name
+          description: Название должности руководителя
+          nullable: true
+          type: string
+        director_job_id:
+          title: Director Job Id
+          description: ID профессии руководителя
+          nullable: true
+          type: string
+        director_job_name:
+          title: Director Job Name
+          description: Название профессии руководителя
+          nullable: true
+          type: string
+        director_job_description:
+          title: Director Job Description
+          description: Описание профессии руководителя
+          nullable: true
+          type: string
+        person_id:
+          title: Person Id
+          description: ID физлица
+          nullable: true
+          type: string
+        person_surname_rus:
+          title: Person Surname Rus
+          description: Фамилия RUS
+          nullable: true
+          type: string
+        person_name_rus:
+          title: Person Name Rus
+          description: Имя RUS
+          nullable: true
+          type: string
+        person_patronymic_rus:
+          title: Person Patronymic Rus
+          description: Отчество RUS
+          nullable: true
+          type: string
+        person_surname_eng:
+          title: Person Surname Eng
+          description: Фамилия ENG
+          nullable: true
+          type: string
+        person_name_eng:
+          title: Person Name Eng
+          description: Имя ENG
+          nullable: true
+          type: string
+        person_patronymic_eng:
+          title: Person Patronymic Eng
+          description: Отчество ENG
+          nullable: true
+          type: string
+        person_birth:
+          title: Person Birth
+          description: Дата рождения
+          nullable: true
+          type: string
+        person_gender:
+          title: Person Gender
+          description: Пол
+          nullable: true
+          type: string
+        person_email:
+          title: Person Email
+          description: Email физлица
+          nullable: true
+          type: string
+        person_phone:
+          title: Person Phone
+          description: Телефон
+          nullable: true
+          type: string
+        person_initials:
+          title: Person Initials
+          description: Инициалы
+          nullable: true
+          type: string
+        person_role:
+          title: Person Role
+          description: Роль физлица
+          nullable: true
+          type: string
+        profile_id:
+          title: Profile Id
+          description: ID профиля
+          nullable: true
+          type: string
+        profile_email:
+          title: Profile Email
+          description: Email профиля
+          nullable: true
+          type: string
+        profile_location:
+          title: Profile Location
+          description: Локация
+          nullable: true
+          type: string
+        profile_acc_type:
+          title: Profile Acc Type
+          description: Тип аккаунта
+          nullable: true
+          type: string
+      type: object
+      title: ProfileAttributes
+    ProfileByEmployeeAttributes:
+      properties:
+        employee_id:
+          title: Employee Id
+          description: ID сотрудника
+          nullable: true
+          type: string
+        person_surname_rus:
+          title: Person Surname Rus
+          description: Фамилия RUS
+          nullable: true
+          type: string
+        person_name_rus:
+          title: Person Name Rus
+          description: Имя RUS
+          nullable: true
+          type: string
+        person_patronymic_rus:
+          title: Person Patronymic Rus
+          description: Отчество RUS
+          nullable: true
+          type: string
+        person_initials:
+          title: Person Initials
+          description: Инициалы для цветной иконки
+          nullable: true
+          type: string
+        job_name:
+          title: Job Name
+          description: Должность
+          nullable: true
+          type: string
+        legal_entity_name:
+          title: Legal Entity Name
+          description: Организация
+          nullable: true
+          type: string
+        department_name:
+          title: Department Name
+          description: Отдел/подразделение
+          nullable: true
+          type: string
+        director_employee_id:
+          title: Director Employee Id
+          description: ID сотрудника руководителя
+          nullable: true
+          type: string
+        director_surname_rus:
+          title: Director Surname Rus
+          description: Фамилия руководителя RUS
+          nullable: true
+          type: string
+        director_name_rus:
+          title: Director Name Rus
+          description: Имя руководителя RUS
+          nullable: true
+          type: string
+        director_patronymic_rus:
+          title: Director Patronymic Rus
+          description: Отчество руководителя RUS
+          nullable: true
+          type: string
+        employee_worker:
+          title: Employee Worker
+          description: Формат работы (как в источнике)
+          nullable: true
+          type: string
+        person_birth:
+          title: Person Birth
+          description: Дата рождения (ISO YYYY-MM-DD)
+          nullable: true
+          type: string
+        person_email:
+          title: Person Email
+          description: Email
+          nullable: true
+          type: string
+        person_phone:
+          title: Person Phone
+          description: Контактный телефон
+          nullable: true
+          type: string
+      type: object
+      title: ProfileByEmployeeAttributes
+      description: |-
+        Узкий набор полей профиля для правого сайдбара портала.
+
+        Нейминг полей совпадает с `ProfileAttributes` (ручка `/profile`), чтобы фронт
+        переиспользовал существующий парсер. Все опциональные поля — `str | None`, при
+        сериализации с `response_model_exclude_none=True` отсутствующие значения в ответ
+        не попадают (требование стори «скрывать поля без данных»).
+    ProfileByEmployeeData:
+      properties:
+        type:
+          type: string
+          title: Type
+          enum:
+            - employee-profiles-flat
+        id:
+          type: string
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/ProfileByEmployeeAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: ProfileByEmployeeData
+    ProfileData:
+      properties:
+        type:
+          type: string
+          title: Type
+          enum:
+            - employee-profiles-flat
+        id:
+          type: string
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/ProfileAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: ProfileData
+    ProfileInformationAttributes:
+      properties:
+        prid:
+          type: string
+          title: Prid
+          description: PRID пользователя
+        email:
+          title: Email
+          description: Email профиля
+          nullable: true
+          type: string
+        profile_id:
+          title: Profile Id
+          description: ID профиля
+          nullable: true
+          type: string
+        number:
+          title: Number
+          description: Табельный номер
+          nullable: true
+          type: string
+        surname_rus:
+          title: Surname Rus
+          description: Фамилия RUS
+          nullable: true
+          type: string
+        name_rus:
+          title: Name Rus
+          description: Имя RUS
+          nullable: true
+          type: string
+        patronymic_rus:
+          title: Patronymic Rus
+          description: Отчество RUS
+          nullable: true
+          type: string
+        birth:
+          title: Birth
+          description: Дата рождения
+          nullable: true
+          type: string
+        phone:
+          title: Phone
+          description: Телефон
+          nullable: true
+          type: string
+        job_name:
+          title: Job Name
+          description: Название должности
+          nullable: true
+          type: string
+        job_code:
+          title: Job Code
+          description: Код должности (внешний ID)
+          nullable: true
+          type: string
+        department_code:
+          title: Department Code
+          description: Код подразделения (внешний ID)
+          nullable: true
+          type: string
+        director:
+          type: boolean
+          title: Director
+          description: Признак руководителя
+        passport_series:
+          title: Passport Series
+          description: Серия паспорта
+          nullable: true
+          type: string
+        passport_number:
+          title: Passport Number
+          description: Номер паспорта
+          nullable: true
+          type: string
+        passport_issued:
+          title: Passport Issued
+          description: Кем выдан паспорт
+          nullable: true
+          type: string
+        passport_issued_date:
+          title: Passport Issued Date
+          description: Дата выдачи паспорта
+          nullable: true
+          type: string
+        passport_issued_code:
+          title: Passport Issued Code
+          description: Код подразделения паспорта
+          nullable: true
+          type: string
+        passport_gender:
+          title: Passport Gender
+          description: Пол (из паспорта)
+          nullable: true
+          type: string
+        passport_birth_date:
+          title: Passport Birth Date
+          description: Дата рождения (из паспорта)
+          nullable: true
+          type: string
+        passport_place_of_birth:
+          title: Passport Place Of Birth
+          description: Место рождения (из паспорта)
+          nullable: true
+          type: string
+        passport_citizenship:
+          title: Passport Citizenship
+          description: Гражданство (из паспорта)
+          nullable: true
+          type: string
+        passport_status:
+          title: Passport Status
+          description: Статус документа паспорта
+          nullable: true
+          type: string
+        snils:
+          title: Snils
+          description: СНИЛС
+          nullable: true
+          type: string
+        inn:
+          title: Inn
+          description: ИНН
+          nullable: true
+          type: string
+        director_prid:
+          title: Director Prid
+          description: PRID директора
+          nullable: true
+          type: string
+        director_surname_rus:
+          title: Director Surname Rus
+          description: Фамилия директора RUS
+          nullable: true
+          type: string
+        director_name_rus:
+          title: Director Name Rus
+          description: Имя директора RUS
+          nullable: true
+          type: string
+        director_patronymic_rus:
+          title: Director Patronymic Rus
+          description: Отчество директора RUS
+          nullable: true
+          type: string
+        director_job_name:
+          title: Director Job Name
+          description: Название должности руководителя
+          nullable: true
+          type: string
+        director_job_code:
+          title: Director Job Code
+          description: Код должности руководителя (внешний ID)
+          nullable: true
+          type: string
+        director_department_code:
+          title: Director Department Code
+          description: Код подразделения руководителя (внешний ID)
+          nullable: true
+          type: string
+      type: object
+      required:
+        - prid
+        - director
+      title: ProfileInformationAttributes
+    ProfileInformationData:
+      properties:
+        type:
+          type: string
+          title: Type
+          enum:
+            - ps_person
+        id:
+          type: string
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/ProfileInformationAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: ProfileInformationData
+    ProfileInformationPersonDssAttributes:
+      properties:
+        prid:
+          type: string
+          title: Prid
+          description: PRID пользователя
+        surname_rus:
+          title: Surname Rus
+          description: Фамилия RUS
+          nullable: true
+          type: string
+        name_rus:
+          title: Name Rus
+          description: Имя RUS
+          nullable: true
+          type: string
+        patronymic_rus:
+          title: Patronymic Rus
+          description: Отчество RUS
+          nullable: true
+          type: string
+        dss:
+          title: Dss
+          description: Признак ДСС
+          nullable: true
+          type: boolean
+      type: object
+      required:
+        - prid
+      title: ProfileInformationPersonDssAttributes
+    ProfileInformationPersonDssData:
+      properties:
+        type:
+          type: string
+          title: Type
+          enum:
+            - ps_person
+        id:
+          type: string
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/ProfileInformationPersonDssAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: ProfileInformationPersonDssData
+    SubordinatesBlock:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/EmployeeCard'
+          type: array
+          title: Items
+          description: Карточки подчинённых сотрудников
+        total:
+          type: integer
+          title: Total
+          description: Общее количество подчинённых
+      type: object
+      required:
+        - total
+      title: SubordinatesBlock
+      description: Блок «Подчинённые» с полным списком и общим количеством.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
+    AttorneyDetailAttributes:
+      properties:
+        organization_name:
+          title: Organization Name
+          description: Наименование организации
+          nullable: true
+          type: string
+        iniciator_name:
+          title: Iniciator Name
+          description: Имя Инициатора
+          nullable: true
+          type: string
+        iniciator_surname:
+          title: Iniciator Surname
+          description: Фамилия Инициатора
+          nullable: true
+          type: string
+        iniciator_patronymic:
+          title: Iniciator Patronymic
+          description: Отчество Инициатора
+          nullable: true
+          type: string
+        principal_name:
+          title: Principal Name
+          description: Имя Доверителя
+          nullable: true
+          type: string
+        principal_surname:
+          title: Principal Surname
+          description: Фамилия Доверителя
+          nullable: true
+          type: string
+        principal_patronymic:
+          title: Principal Patronymic
+          description: Отчество Доверителя
+          nullable: true
+          type: string
+        proxy_name:
+          title: Proxy Name
+          description: Имя Доверенного лица
+          nullable: true
+          type: string
+        proxy_surname:
+          title: Proxy Surname
+          description: Фамилия Доверенного лица
+          nullable: true
+          type: string
+        proxy_patronymic:
+          title: Proxy Patronymic
+          description: Отчество Доверенного лица
+          nullable: true
+          type: string
+        type:
+          description: Тип доверенности
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AttorneyDocumentType'
+        mchd:
+          type: boolean
+          title: Mchd
+          description: МЧД
+        multilanguage:
+          type: boolean
+          title: Multilanguage
+          description: Мультиязычность
+        form_required:
+          type: boolean
+          title: Form Required
+          description: Требование нотариальной формы
+        limits_dou:
+          type: boolean
+          title: Limits Dou
+          description: Расширенные лимиты ДВОУ
+        reg_number:
+          title: Reg Number
+          description: Регистрационный номер
+          nullable: true
+          type: string
+        description:
+          title: Description
+          description: Комментарий
+          nullable: true
+          type: string
+        start_date:
+          title: Start Date
+          description: Дата начала действия
+          nullable: true
+          type: string
+          format: date
+        end_date:
+          title: End Date
+          description: Дата окончания действия
+          nullable: true
+          type: string
+          format: date
+        text_attorney:
+          title: Text Attorney
+          description: Текст доверенности
+          nullable: true
+          type: string
+        authorities:
+          items:
+            $ref: '#/components/schemas/AuthorityDetail'
+          type: array
+          title: Authorities
+        files:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: Files
+      type: object
+      required:
+        - mchd
+        - multilanguage
+        - form_required
+        - limits_dou
+      title: AttorneyDetailAttributes
+    AttorneyDetailData:
+      properties:
+        type:
+          $ref: '#/components/schemas/AttorneyDocumentType'
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneyDetailAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: AttorneyDetailData
+    AttorneyDetailResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyDetailData'
+      type: object
+      required:
+        - data
+      title: AttorneyDetailResponse
+    AttorneyDocumentType:
+      type: string
+      enum:
+        - dm_attorney_standard_paper
+        - dm_attorney_nonstandard_paper
+        - dm_attorney_informal_paper
+        - dm_attorney_standard_machine
+        - dm_attorney_nonstandard_machine
+        - dm_attorney_informal_machine
+      title: AttorneyDocumentType
+    AttorneyListItem:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyListItemData'
+      type: object
+      required:
+        - data
+      title: AttorneyListItem
+    AttorneyListItemAttributes:
+      properties:
+        proxy_name:
+          title: Proxy Name
+          description: Имя
+          nullable: true
+          type: string
+        proxy_surname:
+          title: Proxy Surname
+          description: Фамилия
+          nullable: true
+          type: string
+        proxy_patronymic:
+          title: Proxy Patronymic
+          description: Отчество
+          nullable: true
+          type: string
+        reg_number:
+          title: Reg Number
+          description: Регистрационный номер
+          nullable: true
+          type: string
+        end_date:
+          type: string
+          format: date
+          title: End Date
+          description: Дата окончания действия
+        mchd:
+          type: boolean
+          title: Mchd
+          description: МЧД
+        status:
+          $ref: '#/components/schemas/AttorneyStatus'
+      type: object
+      required:
+        - end_date
+        - mchd
+        - status
+      title: AttorneyListItemAttributes
+    AttorneyListItemData:
+      properties:
+        type:
+          $ref: '#/components/schemas/AttorneyDocumentType'
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneyListItemAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: AttorneyListItemData
+    AttorneyListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/AttorneyListItem'
+          type: array
+          title: Data
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+      type: object
+      required:
+        - data
+        - meta
+      title: AttorneyListResponse
+    AttorneyRequestAttributes:
+      properties:
+        initiator:
+          $ref: '#/components/schemas/InitiatorData'
+        proxy:
+          $ref: '#/components/schemas/ProxyData'
+        multilanguage:
+          type: string
+          enum:
+            - 'Yes'
+            - 'No'
+          title: Multilanguage
+          description: Двуязычная доверенность
+        mchd:
+          type: string
+          enum:
+            - 'Yes'
+            - 'No'
+          title: Mchd
+          description: Машиночитаемая доверенность
+        limits_dou:
+          type: string
+          enum:
+            - 'Yes'
+            - 'No'
+          title: Limits Dou
+          description: Расширенные лимиты ДВОУ
+        form_required:
+          type: string
+          enum:
+            - 'Yes'
+            - 'No'
+          title: Form Required
+          description: Требуется нотариальная форма
+        start_date:
+          type: string
+          format: date
+          title: Start Date
+          description: Дата начала действия
+        end_date:
+          type: string
+          format: date
+          title: End Date
+          description: Дата окончания действия
+        status:
+          $ref: '#/components/schemas/AttorneyRequestStatus'
+        text_attorney:
+          title: Text Attorney
+          description: Текст полномочия
+          nullable: true
+          type: string
+        description:
+          title: Description
+          description: Комментарий к заявке
+          nullable: true
+          type: string
+        authority_request:
+          items:
+            $ref: '#/components/schemas/AuthorityRequestData'
+          type: array
+          title: Authority Request
+        files:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: Files
+      type: object
+      required:
+        - initiator
+        - proxy
+        - multilanguage
+        - mchd
+        - limits_dou
+        - form_required
+        - start_date
+        - end_date
+        - status
+      title: AttorneyRequestAttributes
+    AttorneyRequestDraftWrite:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyRequestDraftWriteData'
+      type: object
+      required:
+        - data
+      title: AttorneyRequestDraftWrite
+    AttorneyRequestDraftWriteAttributes:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        iniciator:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        proxy:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        principal:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        start_date:
+          title: Start Date
+          nullable: true
+          type: string
+          format: date
+        end_date:
+          title: End Date
+          nullable: true
+          type: string
+          format: date
+        multilanguage:
+          type: boolean
+          title: Multilanguage
+          default: false
+        mchd:
+          type: boolean
+          title: Mchd
+          default: false
+        limits_dou:
+          type: boolean
+          title: Limits Dou
+          default: false
+        form_required:
+          type: boolean
+          title: Form Required
+          default: false
+        text_attorney:
+          title: Text Attorney
+          nullable: true
+          type: string
+        description:
+          title: Description
+          nullable: true
+          type: string
+        reason:
+          title: Reason
+          nullable: true
+          type: string
+        status:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RequestStatus'
+        authorities:
+          items:
+            $ref: '#/components/schemas/FormReferencesAuthority'
+          type: array
+          title: Authorities
+        files:
+          items:
+            $ref: '#/components/schemas/FilePayload'
+          type: array
+          title: Files
+        file_uuid:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: File Uuid
+        reg_number:
+          title: Reg Number
+          nullable: true
+          type: string
+      type: object
+      title: AttorneyRequestDraftWriteAttributes
+    AttorneyRequestDraftWriteData:
+      properties:
+        type:
+          $ref: '#/components/schemas/AttorneyType'
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneyRequestDraftWriteAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: AttorneyRequestDraftWriteData
+    AttorneyRequestFileLinkAttributes:
+      properties:
+        download_url:
+          type: string
+          title: Download Url
+        expires_at:
+          title: Expires At
+          nullable: true
+          type: string
+          format: date-time
+        file_name:
+          title: File Name
+          nullable: true
+          type: string
+      type: object
+      required:
+        - download_url
+      title: AttorneyRequestFileLinkAttributes
+    AttorneyRequestFileLinkData:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: attorney_request_file_link
+          enum:
+            - attorney_request_file_link
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneyRequestFileLinkAttributes'
+      type: object
+      required:
+        - id
+        - attributes
+      title: AttorneyRequestFileLinkData
+    AttorneyRequestFileLinkResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyRequestFileLinkData'
+      type: object
+      required:
+        - data
+      title: AttorneyRequestFileLinkResponse
+    AttorneyRequestFileUploadData:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: attorney_request_file
+          enum:
+            - attorney_request_file
+        id:
+          type: string
+          format: uuid
+          title: Id
+      type: object
+      required:
+        - id
+      title: AttorneyRequestFileUploadData
+    AttorneyRequestFileUploadResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyRequestFileUploadData'
+      type: object
+      required:
+        - data
+      title: AttorneyRequestFileUploadResponse
+    AttorneyRequestFormRefReadData:
+      properties:
+        type:
+          items:
+            type: string
+          type: array
+          title: Type
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneyRequestReadApiAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: AttorneyRequestFormRefReadData
+    AttorneyRequestFormReferences:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyRequestFormRefReadData'
+      type: object
+      required:
+        - data
+      title: AttorneyRequestFormReferences
+    AttorneyRequestFullList:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/AttorneyRequestFormReferences'
+          type: array
+          title: Data
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+      type: object
+      required:
+        - data
+        - meta
+      title: AttorneyRequestFullList
+    AttorneyRequestRead:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyRequestReadData'
+      type: object
+      required:
+        - data
+      title: AttorneyRequestRead
+    AttorneyRequestReadApiAttributes:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        organization:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/OrganizationApiSlim'
+        iniciator:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        proxy:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        principal:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        start_date:
+          title: Start Date
+          nullable: true
+          type: string
+          format: date
+        end_date:
+          title: End Date
+          nullable: true
+          type: string
+          format: date
+        multilanguage:
+          type: boolean
+          title: Multilanguage
+          default: false
+        mchd:
+          type: boolean
+          title: Mchd
+          default: false
+        limits_dou:
+          type: boolean
+          title: Limits Dou
+          default: false
+        form_required:
+          type: boolean
+          title: Form Required
+          default: false
+        text_attorney:
+          title: Text Attorney
+          nullable: true
+          type: string
+        description:
+          title: Description
+          nullable: true
+          type: string
+        reason:
+          title: Reason
+          nullable: true
+          type: string
+        status:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RequestStatus'
+        authorities:
+          items:
+            $ref: '#/components/schemas/FormReferencesAuthority'
+          type: array
+          title: Authorities
+        file_uuid:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: File Uuid
+        created_at:
+          title: Created At
+          nullable: true
+          type: string
+          format: date-time
+        submitted_at:
+          title: Submitted At
+          nullable: true
+          type: string
+          format: date-time
+        updated_at:
+          title: Updated At
+          nullable: true
+          type: string
+          format: date-time
+        external_id:
+          title: External Id
+          nullable: true
+          type: string
+        reg_number:
+          title: Reg Number
+          nullable: true
+          type: string
+        function_roles:
+          items:
+            type: string
+          type: array
+          title: Function Roles
+      type: object
+      title: AttorneyRequestReadApiAttributes
+    AttorneyRequestReadData:
+      properties:
+        type:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AttorneyType'
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneyRequestReadApiAttributes'
+      type: object
+      required:
+        - id
+        - attributes
+      title: AttorneyRequestReadData
+    AttorneyRequestStatus:
+      type: string
+      enum:
+        - Completion
+        - Submitted_for_processing
+        - Processing
+        - Released
+        - Rejected
+      title: AttorneyRequestStatus
+    AttorneyRequestSubmitWrite:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyRequestSubmitWriteData'
+      type: object
+      required:
+        - data
+      title: AttorneyRequestSubmitWrite
+    AttorneyRequestSubmitWriteData:
+      properties:
+        type:
+          $ref: '#/components/schemas/AttorneyType'
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneyRequestWriteAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: AttorneyRequestSubmitWriteData
+    AttorneyRequestUpsertPayload:
+      properties:
+        data:
+          $ref: '#/components/schemas/AttorneyRequestReadData'
+      type: object
+      required:
+        - data
+      title: AttorneyRequestUpsertPayload
+    AttorneyRequestWriteAttributes:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        iniciator:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        proxy:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        principal:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        start_date:
+          title: Start Date
+          nullable: true
+          type: string
+          format: date
+        end_date:
+          title: End Date
+          nullable: true
+          type: string
+          format: date
+        multilanguage:
+          type: boolean
+          title: Multilanguage
+          default: false
+        mchd:
+          type: boolean
+          title: Mchd
+          default: false
+        limits_dou:
+          type: boolean
+          title: Limits Dou
+          default: false
+        form_required:
+          type: boolean
+          title: Form Required
+          default: false
+        text_attorney:
+          title: Text Attorney
+          nullable: true
+          type: string
+        description:
+          title: Description
+          nullable: true
+          type: string
+        reason:
+          title: Reason
+          nullable: true
+          type: string
+        status:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RequestStatus'
+        authorities:
+          items:
+            $ref: '#/components/schemas/FormReferencesAuthority'
+          type: array
+          title: Authorities
+        files:
+          items:
+            $ref: '#/components/schemas/FilePayload'
+          type: array
+          title: Files
+        file_uuid:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: File Uuid
+      type: object
+      title: AttorneyRequestWriteAttributes
+    AttorneyStatus:
+      type: string
+      enum:
+        - active
+        - archived
+      title: AttorneyStatus
+    AttorneySyncAttributes:
+      properties:
+        external_id:
+          type: string
+          title: External Id
+        status:
+          type: string
+          title: Status
+        start_date:
+          title: Start Date
+          nullable: true
+          type: string
+          format: date
+        end_date:
+          title: End Date
+          nullable: true
+          type: string
+          format: date
+        type:
+          title: Type
+          nullable: true
+          type: string
+        principals:
+          items:
+            $ref: '#/components/schemas/AttorneySyncPrincipal'
+          type: array
+          title: Principals
+        confidants:
+          items:
+            $ref: '#/components/schemas/AttorneySyncConfidant'
+          type: array
+          title: Confidants
+        organizations:
+          items:
+            $ref: '#/components/schemas/AttorneySyncOrganization'
+          type: array
+          title: Organizations
+        authorities:
+          items:
+            $ref: '#/components/schemas/AttorneySyncAuthority'
+          type: array
+          title: Authorities
+        reg_number:
+          title: Reg Number
+          nullable: true
+          type: string
+        united_reg_number:
+          title: United Reg Number
+          nullable: true
+          type: string
+        mchd:
+          anyOf:
+            - type: string
+            - type: boolean
+          title: Mchd
+          nullable: true
+        multilanguage:
+          anyOf:
+            - type: string
+            - type: boolean
+          title: Multilanguage
+          nullable: true
+        limits_dou:
+          anyOf:
+            - type: string
+            - type: boolean
+          title: Limits Dou
+          nullable: true
+        form_required:
+          anyOf:
+            - type: string
+            - type: boolean
+          title: Form Required
+          nullable: true
+        text_attorney:
+          title: Text Attorney
+          nullable: true
+          type: string
+        description:
+          title: Description
+          nullable: true
+          type: string
+      type: object
+      required:
+        - external_id
+        - status
+      title: AttorneySyncAttributes
+    AttorneySyncAuthority:
+      properties:
+        authority_code:
+          title: Authority Code
+          nullable: true
+          type: string
+        authority_name:
+          title: Authority Name
+          nullable: true
+          type: string
+        limit_amount:
+          title: Limit Amount
+          nullable: true
+          type: number
+      type: object
+      title: AttorneySyncAuthority
+    AttorneySyncAuthorityPayload:
+      properties:
+        directum_id:
+          title: Directum Id
+          nullable: true
+          type: string
+        name_authority:
+          title: Name Authority
+          nullable: true
+          type: string
+        text_ru:
+          title: Text Ru
+          nullable: true
+          type: string
+        comment:
+          title: Comment
+          nullable: true
+          type: string
+        limit:
+          title: Limit
+          nullable: true
+          type: string
+      type: object
+      title: AttorneySyncAuthorityPayload
+    AttorneySyncAuthorityRequestItem:
+      properties:
+        authority:
+          $ref: '#/components/schemas/AttorneySyncAuthorityPayload'
+      type: object
+      required:
+        - authority
+      title: AttorneySyncAuthorityRequestItem
+    AttorneySyncConfidant:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        full_name:
+          title: Full Name
+          nullable: true
+          type: string
+        job_title:
+          title: Job Title
+          nullable: true
+          type: string
+      type: object
+      title: AttorneySyncConfidant
+    AttorneySyncData:
+      properties:
+        id:
+          type: string
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneySyncAttributes'
+        initiator:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AttorneySyncProfileContainer'
+        proxy:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AttorneySyncProfileContainer'
+        authority_request:
+          items:
+            $ref: '#/components/schemas/AttorneySyncAuthorityRequestItem'
+          type: array
+          title: Authority Request
+        files:
+          items:
+            $ref: '#/components/schemas/AttorneySyncFile'
+          type: array
+          title: Files
+        meta:
+          $ref: '#/components/schemas/AttorneySyncMeta'
+      type: object
+      required:
+        - id
+        - attributes
+        - meta
+      title: AttorneySyncData
+    AttorneySyncEventType:
+      type: string
+      enum:
+        - attorney.released
+        - attorney.updated
+        - attorney.revoked
+      title: AttorneySyncEventType
+    AttorneySyncFile:
+      properties:
+        id_file:
+          title: Id File
+          nullable: true
+          type: string
+        Content:
+          title: Content
+          nullable: true
+          type: string
+        Extention:
+          title: Extention
+          nullable: true
+          type: string
+        FileName:
+          title: Filename
+          nullable: true
+          type: string
+        ContentSize:
+          title: Contentsize
+          nullable: true
+          type: integer
+      type: object
+      title: AttorneySyncFile
+    AttorneySyncMeta:
+      properties:
+        created_at:
+          title: Created At
+          nullable: true
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+        - updated_at
+      title: AttorneySyncMeta
+    AttorneySyncOrganization:
+      properties:
+        inn:
+          title: Inn
+          nullable: true
+          type: string
+        kpp:
+          title: Kpp
+          nullable: true
+          type: string
+        ogrn:
+          title: Ogrn
+          nullable: true
+          type: string
+        name:
+          title: Name
+          nullable: true
+          type: string
+      type: object
+      title: AttorneySyncOrganization
+    AttorneySyncPayload:
+      properties:
+        event_type:
+          $ref: '#/components/schemas/AttorneySyncEventType'
+        data:
+          $ref: '#/components/schemas/AttorneySyncData'
+      type: object
+      required:
+        - event_type
+        - data
+      title: AttorneySyncPayload
+    AttorneySyncPrincipal:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        full_name:
+          title: Full Name
+          nullable: true
+          type: string
+        inn:
+          title: Inn
+          nullable: true
+          type: string
+        snils:
+          title: Snils
+          nullable: true
+          type: string
+      type: object
+      title: AttorneySyncPrincipal
+    AttorneySyncProfileContainer:
+      properties:
+        profile:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AttorneySyncProfileRef'
+      type: object
+      title: AttorneySyncProfileContainer
+    AttorneySyncProfileRef:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+      type: object
+      title: AttorneySyncProfileRef
+    AttorneySyncResponse:
+      properties:
+        external_id:
+          type: string
+          title: External Id
+        event_type:
+          $ref: '#/components/schemas/AttorneySyncEventType'
+        processed_at:
+          type: string
+          format: date-time
+          title: Processed At
+        is_duplicate:
+          type: boolean
+          title: Is Duplicate
+          default: false
+      type: object
+      required:
+        - external_id
+        - event_type
+        - processed_at
+      title: AttorneySyncResponse
+    AttorneyType:
+      type: string
+      enum:
+        - dm_attorney_request_standard_paper
+        - dm_attorney_request_standard_machine
+        - dm_attorney_request_nonstandard_paper
+        - dm_attorney_request_nonstandard_machine
+        - dm_attorney_request_informal_paper
+        - dm_attorney_request_informal_machine
+      title: AttorneyType
+    AuthorityDetail:
+      properties:
+        name_authority:
+          title: Name Authority
+          nullable: true
+          type: string
+        amount_authority:
+          title: Amount Authority
+          nullable: true
+          type: string
+        extended_amount:
+          title: Extended Amount
+          nullable: true
+          type: string
+        text_ru:
+          title: Text Ru
+          nullable: true
+          type: string
+        comment:
+          title: Comment
+          nullable: true
+          type: string
+      type: object
+      title: AuthorityDetail
+    AuthorityDictionarySyncAllAttorneyItem:
+      properties:
+        attorneyId:
+          title: Attorneyid
+          nullable: true
+          type: string
+        nameAttorney:
+          title: Nameattorney
+          nullable: true
+          type: string
+        textAttorney:
+          title: Textattorney
+          nullable: true
+          type: string
+        limitId:
+          title: Limitid
+          nullable: true
+          type: string
+        amount:
+          title: Amount
+          nullable: true
+          type: number
+        amount_extended:
+          title: Amount Extended
+          nullable: true
+          type: number
+        is_standart:
+          title: Is Standart
+          nullable: true
+          type: boolean
+        status:
+          title: Status
+          nullable: true
+          type: string
+      type: object
+      title: AuthorityDictionarySyncAllAttorneyItem
+    AuthorityDictionarySyncAllPayload:
+      properties:
+        value:
+          items:
+            $ref: '#/components/schemas/AuthorityDictionarySyncAllValueItem'
+          type: array
+          title: Value
+      type: object
+      title: AuthorityDictionarySyncAllPayload
+    AuthorityDictionarySyncAllResponse:
+      properties:
+        users_count:
+          type: integer
+          title: Users Count
+        total_attorneys:
+          type: integer
+          title: Total Attorneys
+        attorneys_per_user:
+          items:
+            $ref: '#/components/schemas/AuthorityDictionarySyncAllUserCountItem'
+          type: array
+          title: Attorneys Per User
+        sync_id:
+          type: string
+          format: uuid
+          title: Sync Id
+      type: object
+      required:
+        - users_count
+        - total_attorneys
+        - sync_id
+      title: AuthorityDictionarySyncAllResponse
+    AuthorityDictionarySyncAllUserCountItem:
+      properties:
+        prid:
+          type: string
+          title: Prid
+        attorneys_count:
+          type: integer
+          title: Attorneys Count
+      type: object
+      required:
+        - prid
+        - attorneys_count
+      title: AuthorityDictionarySyncAllUserCountItem
+    AuthorityDictionarySyncAllUserData:
+      properties:
+        prid:
+          type: string
+          title: Prid
+        Attorney:
+          items:
+            $ref: '#/components/schemas/AuthorityDictionarySyncAllAttorneyItem'
+          type: array
+          title: Attorney
+      type: object
+      required:
+        - prid
+      title: AuthorityDictionarySyncAllUserData
+    AuthorityDictionarySyncAllUserItem:
+      properties:
+        data:
+          $ref: '#/components/schemas/AuthorityDictionarySyncAllUserData'
+      type: object
+      required:
+        - data
+      title: AuthorityDictionarySyncAllUserItem
+    AuthorityDictionarySyncAllValueItem:
+      properties:
+        Users:
+          items:
+            $ref: '#/components/schemas/AuthorityDictionarySyncAllUserItem'
+          type: array
+          title: Users
+      type: object
+      title: AuthorityDictionarySyncAllValueItem
+    AuthorityRequestData:
+      properties:
+        directum_id:
+          type: string
+          title: Directum Id
+        comment:
+          title: Comment
+          nullable: true
+          type: string
+        amount:
+          title: Amount
+          nullable: true
+          type: string
+      type: object
+      required:
+        - directum_id
+      title: AuthorityRequestData
+    Body_upload_request_file_api_v1_attorney_requests__attorneys_request_uuid__files_post:
+      properties:
+        file:
+          type: string
+          title: File
+          description: Файл (.pdf, .doc, .docx, .jpg, .jpeg, .png), не более 5 МБ
+      type: object
+      required:
+        - file
+      title: Body_upload_request_file_api_v1_attorney_requests__attorneys_request_uuid__files_post
+    ExternalAttorneyRequestItem:
+      properties:
+        type:
+          $ref: '#/components/schemas/ExternalAttorneyRequestType'
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/AttorneyRequestAttributes'
+      type: object
+      required:
+        - id
+        - attributes
+      title: ExternalAttorneyRequestItem
+    ExternalAttorneyRequestType:
+      type: string
+      enum:
+        - dm_attorney_request_standard_paper
+        - dm_attorney_request_standard_machine
+        - dm_attorney_request_nonstandard_paper
+        - dm_attorney_request_nonstandard_machine
+        - dm_attorney_request_informal_paper
+        - dm_attorney_request_informal_machine
+      title: ExternalAttorneyRequestType
+      description: Тип заявки (колонка attorney_request.type), совпадает с AttorneyType.
+    ExternalAttorneyRequestsListMeta:
+      properties:
+        created_at:
+          title: Created At
+          nullable: true
+          type: string
+          format: date-time
+        updated_at:
+          title: Updated At
+          nullable: true
+          type: string
+          format: date-time
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+        - total
+      title: ExternalAttorneyRequestsListMeta
+    ExternalAttorneyRequestsListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/ExternalAttorneyRequestItem'
+          type: array
+          title: Data
+        links:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/ExternalAttorneyRequestsListMeta'
+      type: object
+      required:
+        - data
+        - meta
+      title: ExternalAttorneyRequestsListResponse
+    FileDownloadAttributes:
+      properties:
+        download_url:
+          type: string
+          title: Download Url
+          description: Подписанная временная ссылка
+        expires_at:
+          title: Expires At
+          description: Срок действия ссылки
+          nullable: true
+          type: string
+          format: date-time
+        file_name:
+          title: File Name
+          description: Имя файла
+          nullable: true
+          type: string
+      type: object
+      required:
+        - download_url
+      title: FileDownloadAttributes
+    FileDownloadData:
+      properties:
+        type:
+          $ref: '#/components/schemas/FileType'
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/FileDownloadAttributes'
+      type: object
+      required:
+        - id
+        - attributes
+      title: FileDownloadData
+    FileDownloadResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/FileDownloadData'
+      type: object
+      required:
+        - data
+      title: FileDownloadResponse
+    FilePayload:
+      properties:
+        file_uuid:
+          type: string
+          format: uuid
+          title: File Uuid
+      type: object
+      required:
+        - file_uuid
+      title: FilePayload
+    FileType:
+      type: string
+      enum:
+        - attorney_file_link
+      title: FileType
+    FormReferencesAttributes:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        organization:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/OrganizationApiSlim'
+        iniciator:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        proxy:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        principal:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PersonApiStub'
+        start_date:
+          title: Start Date
+          nullable: true
+          type: string
+          format: date
+        end_date:
+          title: End Date
+          nullable: true
+          type: string
+          format: date
+        multilanguage:
+          type: boolean
+          title: Multilanguage
+          default: false
+        mchd:
+          type: boolean
+          title: Mchd
+          default: false
+        limits_dou:
+          type: boolean
+          title: Limits Dou
+          default: false
+        form_required:
+          type: boolean
+          title: Form Required
+          default: false
+        text_attorney:
+          title: Text Attorney
+          nullable: true
+          type: string
+        description:
+          title: Description
+          nullable: true
+          type: string
+        status:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RequestStatus'
+        authorities:
+          items:
+            $ref: '#/components/schemas/FormReferencesAuthority'
+          type: array
+          title: Authorities
+      type: object
+      title: FormReferencesAttributes
+    FormReferencesAuthority:
+      properties:
+        authority_id:
+          title: Authority Id
+          nullable: true
+          type: string
+          maxLength: 255
+        name_authority:
+          title: Name Authority
+          nullable: true
+          type: string
+        amount_authority:
+          title: Amount Authority
+          nullable: true
+          type: string
+        extended_amount:
+          title: Extended Amount
+          nullable: true
+          type: string
+        text_ru:
+          title: Text Ru
+          nullable: true
+          type: string
+        comment:
+          title: Comment
+          nullable: true
+          type: string
+        is_standart:
+          title: Is Standart
+          nullable: true
+          type: boolean
+        status:
+          title: Status
+          nullable: true
+          type: string
+          maxLength: 50
+      type: object
+      title: FormReferencesAuthority
+      description: Полномочие для формы в формате form-references.
+    FormReferencesData:
+      properties:
+        type:
+          items:
+            type: string
+          type: array
+          title: Type
+        id:
+          type: string
+          format: uuid
+          title: Id
+        attributes:
+          $ref: '#/components/schemas/FormReferencesAttributes'
+      type: object
+      required:
+        - type
+        - id
+        - attributes
+      title: FormReferencesData
+    FormReferencesResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/FormReferencesData'
+      type: object
+      required:
+        - data
+      title: FormReferencesResponse
+    InitiatorData:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        email:
+          title: Email
+          nullable: true
+          type: string
+      type: object
+      title: InitiatorData
+    LineManagerData:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        Surname:
+          title: Surname
+          nullable: true
+          type: string
+        Name:
+          title: Name
+          nullable: true
+          type: string
+        Patronymic:
+          title: Patronymic
+          nullable: true
+          type: string
+        department_code:
+          title: Department Code
+          nullable: true
+          type: string
+        job_title:
+          title: Job Title
+          nullable: true
+          type: string
+        code_title:
+          title: Code Title
+          nullable: true
+          type: string
+      type: object
+      title: LineManagerData
+    OrganizationApiSlim:
+      properties:
+        name:
+          title: Name
+          nullable: true
+          type: string
+          maxLength: 500
+        inn:
+          title: Inn
+          nullable: true
+          type: string
+          maxLength: 12
+        kpp:
+          title: Kpp
+          nullable: true
+          type: string
+          maxLength: 9
+        ogrn:
+          title: Ogrn
+          nullable: true
+          type: string
+          maxLength: 15
+        phone:
+          title: Phone
+          nullable: true
+          type: string
+          maxLength: 50
+        address:
+          title: Address
+          nullable: true
+          type: string
+      type: object
+      title: OrganizationApiSlim
+    PaginationLinks:
+      properties:
+        self:
+          title: Self
+          nullable: true
+          type: string
+        first:
+          title: First
+          nullable: true
+          type: string
+        last:
+          title: Last
+          nullable: true
+          type: string
+        prev:
+          title: Prev
+          nullable: true
+          type: string
+        next:
+          title: Next
+          nullable: true
+          type: string
+      type: object
+      title: PaginationLinks
+    PaginationMeta:
+      properties:
+        total:
+          type: integer
+          title: Total
+          description: Общее количество записей
+        limit:
+          type: integer
+          title: Limit
+          description: Максимальное количество записей на странице
+        offset:
+          type: integer
+          title: Offset
+          description: Смещение от начала списка
+      type: object
+      required:
+        - total
+        - limit
+        - offset
+      title: PaginationMeta
+    PersonApiStub:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+          maxLength: 50
+        surname:
+          title: Surname
+          nullable: true
+          type: string
+          maxLength: 255
+        name:
+          title: Name
+          nullable: true
+          type: string
+          maxLength: 255
+        patronymic:
+          title: Patronymic
+          nullable: true
+          type: string
+          maxLength: 255
+      type: object
+      title: PersonApiStub
+    ProxyData:
+      properties:
+        prid:
+          title: Prid
+          nullable: true
+          type: string
+        Surname:
+          title: Surname
+          nullable: true
+          type: string
+        Name:
+          title: Name
+          nullable: true
+          type: string
+        Patronymic:
+          title: Patronymic
+          nullable: true
+          type: string
+        Email:
+          title: Email
+          nullable: true
+          type: string
+        PassportSeries:
+          title: Passportseries
+          nullable: true
+          type: string
+        PassportNumber:
+          title: Passportnumber
+          nullable: true
+          type: string
+        PassportIssuedByOrganization:
+          title: Passportissuedbyorganization
+          nullable: true
+          type: string
+        PassportIssuedDate:
+          title: Passportissueddate
+          nullable: true
+          type: string
+        PassportIssuedCode:
+          title: Passportissuedcode
+          nullable: true
+          type: string
+        PassportGender:
+          title: Passportgender
+          nullable: true
+          type: string
+        PassportBirthDate:
+          title: Passportbirthdate
+          nullable: true
+          type: string
+        PassportBirthPlace:
+          title: Passportbirthplace
+          nullable: true
+          type: string
+        PassportCitizenship:
+          title: Passportcitizenship
+          nullable: true
+          type: string
+        SNILSNumber:
+          title: Snilsnumber
+          nullable: true
+          type: string
+        INNNumber:
+          title: Innnumber
+          nullable: true
+          type: string
+        job_title:
+          title: Job Title
+          nullable: true
+          type: string
+        code_title:
+          title: Code Title
+          nullable: true
+          type: string
+        department_code:
+          title: Department Code
+          nullable: true
+          type: string
+        line_manager:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/LineManagerData'
+      type: object
+      title: ProxyData
+    RequestStatus:
+      type: string
+      enum:
+        - Completion
+        - Submitted_for_processing
+        - Processing
+        - Rejected
+        - Released
+      title: RequestStatus
+    StatusUpdateCallbackPayload:
+      properties:
+        parent_id:
+          type: string
+          format: uuid
+          title: Parent Id
+          description: UUID заявки в нашей БД
+        external_id:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,255}$
+          title: External Id
+          description: Directum ID заявки
+        new_status:
+          $ref: '#/components/schemas/AttorneyRequestStatus'
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        reason:
+          title: Reason
+          description: Причина изменения статуса
+          nullable: true
+          type: string
+      type: object
+      required:
+        - parent_id
+        - external_id
+        - new_status
+        - updated_at
+      title: StatusUpdateCallbackPayload
+    StatusUpdateCallbackResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        external_id:
+          type: string
+          title: External Id
+        status:
+          $ref: '#/components/schemas/AttorneyRequestStatus'
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+        - id
+        - external_id
+        - status
+        - updated_at
+      title: StatusUpdateCallbackResponse
+  securitySchemes:
+    ZitadelFrontendJWT:
+      openIdConnectUrl: https://${var.oidc_issuer}/.well-known/openid-configuration
+      type: openIdConnect
+      x-yc-apigateway-authorizer:
+        type: jwt
+        jwksUri: https://${var.oidc_issuer}/oauth/v2/keys
+        authorizer_result_caching_mode: path
+        authorizer_result_ttl_in_seconds: 300
+        identitySource:
+          in: header
+          name: Authorization
+          prefix: 'Bearer '
+        issuers:
+          - https://${var.oidc_issuer}
+        requiredClaims:
+          - prid
+          - scp
+    ZitadelExternalJWT:
+      openIdConnectUrl: https://${var.oidc_issuer}/.well-known/openid-configuration
+      type: openIdConnect
+      x-yc-apigateway-authorizer:
+        type: jwt
+        jwksUri: https://${var.oidc_issuer}/oauth/v2/keys
+        authorizer_result_caching_mode: path
+        authorizer_result_ttl_in_seconds: 300
+        identitySource:
+          in: header
+          name: Authorization
+          prefix: 'Bearer '
+        issuers:
+          - https://${var.oidc_issuer}
+        requiredClaims:
+          - scp
+x-tagGroups:
+  - name: Portal-Profile API
+    tags:
+      - profile
+  - name: user-attorney
+    tags:
+      - attorneys
+      - attorneys-request
+      - attorney-external
+      - attorney-webhooks
+      - user-attorney_part_other
+x-yc-apigateway:
+  validator:
+    validateRequestParameters: false
+    validateResponseBody: false
+  variables:
+    backend_url:
+      default: ''
+    profile_backend:
+      default: ''
+    oidc_issuer:
+      default: ''
+    attorneys:
+      default: ''
+    x_sec_gw:
+      default: ''
+  cors:
+    origin: true
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowedHeaders:
+      - Authorization
+      - Content-Type
+      - X-Request-Id
+      - x-yc-apigateway-authorization-context
+    exposedHeaders:
+      - X-Request-Id
+      - x-yc-apigateway-authorization-context
+    maxAge: 3600
