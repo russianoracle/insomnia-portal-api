@@ -1,15 +1,13 @@
-{
-  "_id": "env_prod",
-  "type": "Environment",
-  "parentId": "env_base",
-  "modified": 1777690447546,
-  "created": 1777690447546,
-  "name": "Prod (Valmet)",
-  "data": {
-    "az_m2m_gateway_url": "https://eflow-api.astrazenecacloud.ru"
-  },
-  "dataPropertyOrder": null,
-  "color": "#d11919",
-  "isPrivate": false,
-  "metaSortKey": 1777690447546
-}
+_id: env_prod
+type: Environment
+parentId: env_base
+modified: 1777690603895
+created: 1777690603895
+name: Prod (Valmet)
+data:
+  az_m2m_gateway_url: https://eflow-api.astrazenecacloud.ru
+dataPropertyOrder: null
+color: '#d11919'
+isPrivate: false
+metaSortKey: 1700000000003
+__export_format: 4

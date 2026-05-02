@@ -1,10 +1,9 @@
-{
-  "_id": "wrk_api_portal",
-  "type": "Workspace",
-  "parentId": null,
-  "modified": 1777690447545,
-  "created": 1777690447545,
-  "name": "Portal-Profile API Project",
-  "description": "Project for Portal-Profile API with Environments and MCP",
-  "scope": "design"
-}
+_id: wrk_api_portal
+type: Workspace
+parentId: null
+modified: 1777690603892
+created: 1777690603892
+name: Portal-Profile API Project
+description: Full-featured project for Portal-Profile API with MCP support
+scope: design
+__export_format: 4
