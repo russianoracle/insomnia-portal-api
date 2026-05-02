@@ -1,8 +1,8 @@
 _id: spc_openapi
 type: ApiSpec
 parentId: wrk_api_portal
-modified: 1777690707888
-created: 1777690707888
+modified: 1777690958027
+created: 1777690958027
 fileName: Portal-Profile API
 contentType: yaml
 contents: |
