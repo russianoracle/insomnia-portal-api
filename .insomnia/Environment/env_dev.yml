@@ -1,13 +1,12 @@
 _id: env_dev
 type: Environment
 parentId: env_base
-modified: 1777690603895
-created: 1777690603895
+modified: 1777690707887
+created: 1777690707887
 name: Dev
 data:
   az_m2m_gateway_url: https://dev-eflow-api.astrazenecacloud.ru
 dataPropertyOrder: null
-color: '#7d69cb'
+color: "#7d69cb"
 isPrivate: false
 metaSortKey: 1700000000001
-__export_format: 4

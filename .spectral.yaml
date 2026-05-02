@@ -1,0 +1,9 @@
+extends: ["spectral:oas"]
+rules:
+  operation-description: warn
+  info-contact: off
+  info-description: off
+  oas3-api-servers: off
+  oas3-server-variables: off
+  oas3-schema: off
+  no-$ref-siblings: error

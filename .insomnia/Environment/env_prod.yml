@@ -1,13 +1,12 @@
 _id: env_prod
 type: Environment
 parentId: env_base
-modified: 1777690603895
-created: 1777690603895
+modified: 1777690707887
+created: 1777690707887
 name: Prod (Valmet)
 data:
   az_m2m_gateway_url: https://eflow-api.astrazenecacloud.ru
 dataPropertyOrder: null
-color: '#d11919'
+color: "#d11919"
 isPrivate: false
 metaSortKey: 1700000000003
-__export_format: 4
